@@ -20,56 +20,55 @@
   function setup() {
     createCanvas(800, 400);
     groundY = height - 50;
-    aeroplane = new Aeroplane();
-    twinTowers.push(new TwinTower());
+    resetGame();
   }
 
   function draw() {
     background(255);
 
-    // Draw ground
+    // Ground
     stroke(0);
     line(0, groundY, width, groundY);
 
-    // Update and show aeroplane
+    // Aeroplane
     aeroplane.update();
     aeroplane.show();
 
-    // Update and show twin towers (each obstacle is a single twin tower with exactly two vertical structures)
     if (!gameOver) {
-      if (frameCount % 60 === 0) {
+      if (frameCount % 90 === 0) {
         twinTowers.push(new TwinTower());
-        score += 10;
       }
 
       for (let i = twinTowers.length - 1; i >= 0; i--) {
-        twinTowers[i].update();
-        twinTowers[i].show();
+        let tower = twinTowers[i];
+        tower.update();
+        tower.show();
 
-        // Collision detection
-        if (aeroplane.hits(twinTowers[i])) {
+        if (aeroplane.hits(tower)) {
           gameOver = true;
         }
 
-        // Remove twin towers that are off-screen
-        if (twinTowers[i].x < -twinTowers[i].w) {
+        if (tower.x + tower.w < 0) {
           twinTowers.splice(i, 1);
+          score += 10;
         }
       }
     }
 
-    // Display score
+    // Score
     textSize(20);
     textAlign(LEFT);
     fill(0);
     text(`Score: ${score}`, 10, 30);
 
-    // Game over screen
+    // Game Over
     if (gameOver) {
       textSize(32);
       textAlign(CENTER);
-      text("Game Over", width / 2, height / 2);
-      text(`Score: ${score}`, width / 2, height / 2 + 40);
+      fill(200, 0, 0);
+      text("💥 Game Over 💥", width / 2, height / 2);
+      fill(0);
+      text(`Final Score: ${score}`, width / 2, height / 2 + 40);
       text("Press SPACE to restart", width / 2, height / 2 + 80);
       noLoop();
     }
@@ -78,12 +77,7 @@
   function keyPressed() {
     if (keyCode === 32) { // Spacebar
       if (gameOver) {
-        // Restart game
-        twinTowers = [];
-        score = 0;
-        gameOver = false;
-        aeroplane = new Aeroplane();
-        twinTowers.push(new TwinTower());
+        resetGame();
         loop();
       } else {
         aeroplane.jump();
@@ -91,75 +85,82 @@
     }
   }
 
+  function resetGame() {
+    twinTowers = [];
+    score = 0;
+    gameOver = false;
+    aeroplane = new Aeroplane();
+    frameCount = 0;
+    twinTowers.push(new TwinTower());
+  }
+
+  // === Aeroplane ===
   class Aeroplane {
     constructor() {
       this.x = 50;
-      this.y = groundY;
+      this.y = height / 2;
       this.w = 60;
       this.h = 30;
       this.vy = 0;
-      this.gravity = 0.8;
-      this.jumpStrength = -15;
-      this.onGround = true;
+      this.gravity = 1;
+      this.jumpStrength = -18;
     }
 
     update() {
-      if (!this.onGround) {
-        this.vy += this.gravity;
-        this.y += this.vy;
+      this.vy += this.gravity;
+      this.y += this.vy;
+
+      if (this.y >= groundY - this.h) {
+        this.y = groundY - this.h;
+        this.vy = 0;
       }
 
-      if (this.y >= groundY) {
-        this.y = groundY;
+      if (this.y < 0) {
+        this.y = 0;
         this.vy = 0;
-        this.onGround = true;
       }
     }
 
     show() {
       push();
-      translate(this.x, this.y - this.h);
+      translate(this.x, this.y);
       fill(150);
       stroke(0);
-      // Aeroplane body
-      rect(5, 10, 50, 10, 5); // Rounded rectangle for body
-      // Cockpit
+
+      rect(5, 10, 50, 10, 5); // body
       fill(100, 100, 255);
-      ellipse(50, 15, 10, 8); // Blue cockpit window
-      // Wings
+      ellipse(50, 15, 10, 8); // cockpit
       fill(150);
-      triangle(20, 10, 40, 10, 30, 0); // Top wing
-      triangle(20, 20, 40, 20, 30, 30); // Bottom wing
-      // Tail
-      triangle(0, 10, 0, 20, -10, 15); // Tail fin
-      // Engine
+      triangle(20, 10, 40, 10, 30, 0); // wings
+      triangle(20, 20, 40, 20, 30, 30);
+      triangle(0, 10, 0, 20, -10, 15); // tail
       fill(100);
-      rect(15, 20, 10, 5); // Engine under wing
+      rect(15, 20, 10, 5); // engine
       pop();
     }
 
     jump() {
-      if (this.onGround) {
-        this.vy = this.jumpStrength;
-        this.onGround = false;
-      }
+      this.vy = this.jumpStrength;
     }
 
     hits(tower) {
-      return (this.x + this.w > tower.x &&
+      return (
               this.x < tower.x + tower.w &&
-              this.y > tower.y - tower.h &&
-              this.y - this.h < tower.y);
+              this.x + this.w > tower.x &&
+              this.y < tower.y &&
+              this.y + this.h > tower.y - tower.h
+      );
     }
   }
 
+  // === TwinTower ===
   class TwinTower {
     constructor() {
-      this.w = 40;
-      this.h = 60;
+      this.w = 30;
+      this.h = random(10, 40); // much shorter towers
       this.x = width;
       this.y = groundY;
-      this.speed = -5;
+      this.speed = -5 - floor(score / 100);
     }
 
     update() {
@@ -170,32 +171,24 @@
       push();
       translate(this.x, this.y - this.h);
 
-      // Twin tower: exactly two vertical structures as a single obstacle
-      // Left tower
-      fill(80); // Darker grey for depth
-      rect(0, 0, 15, this.h);
-      // Right tower
-      fill(100); // Lighter grey
-      rect(25, 0, 15, this.h);
+      fill(80);
+      rect(0, 0, 12, this.h);
+      fill(100);
+      rect(18, 0, 12, this.h);
 
-      // Windows (staggered pattern)
-      fill(180, 180, 255); // Light blue for windows
-      for (let y = 5; y < this.h - 5; y += 10) {
-        rect(2, y, 5, 4); // Left tower windows
-        rect(4, y + 5, 5, 4);
-        rect(27, y, 5, 4); // Right tower windows
-        rect(29, y + 5, 5, 4);
+      fill(180, 180, 255);
+      for (let y = 5; y < this.h - 5; y += 12) {
+        rect(2, y, 4, 3);
+        rect(20, y, 4, 3);
       }
 
-      // Rooftop details
       fill(50);
-      rect(0, 0, 15, 3); // Left tower roof
-      rect(25, 0, 15, 3); // Right tower roof
+      rect(0, 0, 12, 2);
+      rect(18, 0, 12, 2);
 
-      // Antenna on left tower
       stroke(80);
-      line(7.5, 0, 7.5, -12); // Antenna
-      ellipse(7.5, -12, 3, 3); // Antenna tip
+      line(6, 0, 6, -10);
+      ellipse(6, -10, 2.5, 2.5);
 
       pop();
     }
